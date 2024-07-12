@@ -1,0 +1,18 @@
+# Variables are defined in the config.py file. This file is imported in the exportAsCode.py file.
+FQDN_HOSTNAME = ""
+URI = f"https://{FQDN_HOSTNAME}/vtom/public"
+CRUD_URI = "/domain/2.0"
+MONITOR_URI = "/monitoring/1.0"
+GRAPH_URI = "/graph/1.0"
+AUTH_URI = "/auth/1.0/authorize"
+SECURITY_URI = "/security/1.0"
+API_KEY = ""
+VERIFY_SSL = False
+
+# Variables
+ROOT_PATH = "/var/lib/absyss/visual-tom/vtjson"
+HEADER_AUTH = {
+                "accept": "application/json",
+                "Content-Type": "application/json",
+                "X-API-KEY": API_KEY
+              }
