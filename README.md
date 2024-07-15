@@ -32,13 +32,13 @@ Both parts are related to JobAsCode but can be used/setup independently.
 
 ## Extracting the repository in JSON format
 When the repository already exists in Visual TOM, it is possible to extract it in JSON format and store it in a version control system.
-    * Create an API token from Visual TOM interface with a strategy that has "Get" rights
-    * Fill in the config.py file:
-        * `FQDN_HOSTNAME`: server name with the API server port
-        * `API_KEY`: previously created API key
-        * `VERIFY_SSL`: Enable or disable HTTPS certificate verification (by default, the certificate is self-signed and not valid)
-        * `ROOT_PATH`: path where the extracted files will be stored
-    * Run the script
+  * Create an API token from Visual TOM interface with a strategy that has "Get" rights
+  * Fill in the config.py file:
+    * `FQDN_HOSTNAME`: server name with the API server port
+    * `API_KEY`: previously created API key
+    * `VERIFY_SSL`: Enable or disable HTTPS certificate verification (by default, the certificate is self-signed and not valid)
+    * `ROOT_PATH`: path where the extracted files will be stored
+  * Run the script
     ```python3 exportAsCode.py```
 At the end of the execution, a summary will display any potential errors.
 The directory structure follows the API URLs: objectType/objectName/subObjectType/subObjectName
