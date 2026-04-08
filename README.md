@@ -36,24 +36,25 @@ For updating the repository after a commit:
 Both parts are related to JobAsCode but can be used/setup independently.
 
 ## Preparatory prerequisite validation
-The `prepareJobAsCode.py` script validates software prerequisites before running export/import:
-  * API reachability of source VTOM server
-  * API reachability of target VTOM server
-  * same Domain API version on source and target (for example `/domain/5.0`)
-  * Swagger/OpenAPI reachability (`/v3/api-docs` or `/swagger-ui`)
-  * presence of both local git repositories
-  * consistency of central `origin` remote across both repositories
+The `prepareJobAsCode.py` script prepares one side (`source` or `target`) at a time:
+  * validation of selected VTOM server (API + Swagger/OpenAPI)
+  * detection of available Domain API version (`/domain/x.y`)
+  * local repository preparation (clone if missing, init if needed)
+  * central `origin` remote alignment
+  * `config.py` update (`config.py.template` is used if `config.py` is missing)
+  * fallback to `config.py` values for `FQDN_HOSTNAME`, `API_KEY`, `GIT_ORIGIN`, `GIT_LOCAL`, `VERIFY_SSL`
 
-Example:
+Example (the script asks values interactively):
 ```bash
-python3 prepareJobAsCode.py \
-  --source-vtom "source-vtom:30002" \
-  --source-token "<source-token>" \
-  --target-vtom "target-vtom:30002" \
-  --target-token "<target-token>" \
-  --source-repo "/path/source-repo" \
-  --target-repo "/path/target-repo" \
-  --verify-ssl false
+python3 prepareJobAsCode.py
+```
+
+Role (`source`/`target`) and all other values are prompted at runtime.
+Defaults are prefilled from `config.py` when available.
+
+Dry-run mode (no local write operations):
+```bash
+python3 prepareJobAsCode.py ... --dry-run
 ```
 
 JSON summary output (for CI):
@@ -73,7 +74,7 @@ When the repository already exists in Visual TOM, it is possible to extract it i
     * `FQDN_HOSTNAME`: server name with the API server port
     * `API_KEY`: previously created API key
     * `VERIFY_SSL`: Enable or disable HTTPS certificate verification (by default, the certificate is self-signed and not valid)
-    * `ROOT_PATH`: path where the extracted files will be stored
+    * `GIT_LOCAL`: local path used for extracted files and local repository
   * Run the script
     ```python3 exportAsCode.py```
 At the end of the execution, a summary will display any potential errors.

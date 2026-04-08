@@ -2,15 +2,14 @@
 FQDN_HOSTNAME = ""
 URI = f"https://{FQDN_HOSTNAME}/vtom/public"
 CRUD_URI = "/domain/5.0"
-MONITOR_URI = "/monitoring/1.0"
 GRAPH_URI = "/graph/2.0"
-AUTH_URI = "/auth/2.0/authorize"
 SECURITY_URI = "/security/1.0"
 API_KEY = ""
 VERIFY_SSL = False
+GIT_ORIGIN = ""
 
 # Variables
-ROOT_PATH = "/var/lib/absyss/visual-tom/vtjson"
+GIT_LOCAL = "/var/lib/absyss/visual-tom/vtjson"
 HEADER_AUTH = {
                 "accept": "application/json",
                 "Content-Type": "application/json",

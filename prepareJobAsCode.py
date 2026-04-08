@@ -1,12 +1,25 @@
 import argparse
+import getpass
 import json
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 import requests
+
+try:
+    from config import API_KEY as CONFIG_API_KEY
+    from config import FQDN_HOSTNAME as CONFIG_FQDN_HOSTNAME
+    from config import GIT_ORIGIN as CONFIG_GIT_ORIGIN
+    from config import GIT_LOCAL as CONFIG_GIT_LOCAL
+    from config import VERIFY_SSL as CONFIG_VERIFY_SSL
+except Exception:
+    CONFIG_FQDN_HOSTNAME = ""
+    CONFIG_API_KEY = ""
+    CONFIG_GIT_ORIGIN = ""
+    CONFIG_GIT_LOCAL = ""
+    CONFIG_VERIFY_SSL = False
 
 
 def print_format(level: str, content: str) -> None:
@@ -66,67 +79,144 @@ def check_swagger(endpoint: str, verify_ssl: bool) -> tuple[bool, str]:
     return False, "swagger not reachable on /v3/api-docs or /swagger-ui"
 
 
-def check_local_git_repo(name: str, repo_path: str) -> tuple[bool, str]:
-    path = Path(repo_path).resolve()
-    if not path.exists():
-        return False, f"{name}: path does not exist ({path})"
-    if not path.is_dir():
-        return False, f"{name}: path is not a directory ({path})"
-    git_dir = path / ".git"
-    if not git_dir.exists():
-        return False, f"{name}: not a git repository ({path})"
-    return True, f"{name}: git repository found ({path})"
+def run_git(args: list[str], cwd: str) -> subprocess.CompletedProcess:
+    return subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=True)
 
 
 def get_origin_url(repo_path: str) -> tuple[bool, str]:
     try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            cwd=repo_path,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+        result = run_git(["git", "remote", "get-url", "origin"], repo_path)
     except subprocess.CalledProcessError as err:
         return False, f"cannot read origin remote ({err.stderr.strip() or err})"
     return True, result.stdout.strip()
 
 
-def check_central_origin(source_repo: str, target_repo: str) -> tuple[bool, str]:
-    ok_src, src_info = get_origin_url(source_repo)
-    ok_tgt, tgt_info = get_origin_url(target_repo)
+def ensure_local_repo(local_repo: str, central_origin: str, dry_run: bool = False) -> tuple[bool, str]:
+    path = Path(local_repo).resolve()
+    if not path.exists():
+        if dry_run and central_origin:
+            return True, f"DRY-RUN: would clone {central_origin} into {path}"
+        if dry_run and not central_origin:
+            return True, f"DRY-RUN: would create local git repository in {path} (no origin configured)"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not central_origin:
+            path.mkdir(parents=True, exist_ok=True)
+            run_git(["git", "init"], str(path))
+            return True, f"local repo initialized ({path}) without origin"
+        try:
+            subprocess.run(
+                ["git", "clone", central_origin, str(path)],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return True, f"local repo created by clone ({path})"
+        except subprocess.CalledProcessError as err:
+            # If central repository does not exist yet, bootstrap local repository anyway.
+            if not path.exists():
+                path.mkdir(parents=True, exist_ok=True)
+            try:
+                run_git(["git", "init"], str(path))
+                run_git(["git", "remote", "add", "origin", central_origin], str(path))
+                clone_err = err.stderr.strip() or str(err)
+                return True, (
+                    f"clone failed, local repo initialized instead ({path}) with origin={central_origin}. "
+                    f"Clone error: {clone_err}"
+                )
+            except subprocess.CalledProcessError as init_err:
+                return False, f"clone failed and bootstrap init failed ({init_err.stderr.strip() or init_err})"
 
-    if not ok_src:
-        return False, f"source repo origin: {src_info}"
-    if not ok_tgt:
-        return False, f"target repo origin: {tgt_info}"
+    if not path.is_dir():
+        return False, f"path is not a directory ({path})"
 
-    if src_info != tgt_info:
-        return False, (
-            "origin mismatch between repositories "
-            f"(source={src_info}, target={tgt_info})"
-        )
-    return True, f"shared central origin detected ({src_info})"
+    git_dir = path / ".git"
+    if not git_dir.exists():
+        if dry_run:
+            return True, f"DRY-RUN: would initialize git repository in {path}"
+        try:
+            run_git(["git", "init"], str(path))
+        except subprocess.CalledProcessError as err:
+            return False, f"git init failed ({err.stderr.strip() or err})"
+
+    ok_origin, current_origin = get_origin_url(str(path))
+    if central_origin:
+        if ok_origin:
+            if current_origin != central_origin:
+                if dry_run:
+                    return True, f"DRY-RUN: would set origin to {central_origin} (currently {current_origin})"
+                try:
+                    run_git(["git", "remote", "set-url", "origin", central_origin], str(path))
+                except subprocess.CalledProcessError as err:
+                    return False, f"cannot set origin ({err.stderr.strip() or err})"
+        else:
+            if dry_run:
+                return True, f"DRY-RUN: would add origin={central_origin} in {path}"
+            try:
+                run_git(["git", "remote", "add", "origin", central_origin], str(path))
+            except subprocess.CalledProcessError as err:
+                return False, f"cannot add origin ({err.stderr.strip() or err})"
+        return True, f"local repo ready ({path}) with origin={central_origin}"
+    return True, f"local repo ready ({path}) without origin (can be configured later)"
+
+
+def update_config_file(
+    config_file: str,
+    endpoint: str,
+    api_key: str,
+    verify_ssl: bool,
+    dry_run: bool = False,
+) -> tuple[bool, str]:
+    path = Path(config_file).resolve()
+    if not path.exists():
+        template_path = path.parent / "config.py.template"
+        if not template_path.exists():
+            return False, f"config file not found ({path}) and template missing ({template_path})"
+        if dry_run:
+            return True, f"DRY-RUN: would create {path} from template {template_path} and update values"
+        path.write_text(template_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    content = path.read_text(encoding="utf-8")
+    updates = {
+        "FQDN_HOSTNAME": f"\"{endpoint}\"",
+        "API_KEY": f"\"{api_key}\"",
+        "VERIFY_SSL": "True" if verify_ssl else "False",
+    }
+    for key, value in updates.items():
+        marker = f"{key} = "
+        if marker not in content:
+            return False, f"key not found in config: {key}"
+        lines = content.splitlines()
+        for i, line in enumerate(lines):
+            if line.startswith(marker):
+                lines[i] = f"{key} = {value}"
+        content = "\n".join(lines) + "\n"
+
+    if dry_run:
+        return True, f"DRY-RUN: would update config ({path})"
+
+    path.write_text(content, encoding="utf-8")
+    return True, f"config updated ({path})"
 
 
 def to_bool(value: str) -> bool:
     return value.strip().lower() in ("1", "true", "yes", "on")
 
 
+def prompt_with_default(prompt: str, default_value: str) -> str:
+    suffix = f" [{default_value}]" if default_value else ""
+    value = input(f"{prompt}{suffix}: ").strip()
+    return value if value else default_value
+
+
+def prompt_secret(prompt: str, default_present: bool) -> str:
+    suffix = " [from config]" if default_present else ""
+    value = getpass.getpass(f"{prompt}{suffix}: ").strip()
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate JobAsCode software prerequisites before import/export."
-    )
-    parser.add_argument("--source-vtom", required=True, help="Source VTOM host:port")
-    parser.add_argument("--source-token", required=True, help="API token for source VTOM")
-    parser.add_argument("--target-vtom", required=True, help="Target VTOM host:port")
-    parser.add_argument("--target-token", required=True, help="API token for target VTOM")
-    parser.add_argument("--source-repo", required=True, help="Local source git repository path")
-    parser.add_argument("--target-repo", required=True, help="Local target git repository path")
-    parser.add_argument(
-        "--verify-ssl",
-        default="false",
-        help="Enable HTTPS certificate verification (true/false), default false",
+        description="Prepare one JobAsCode side (source or target): VTOM, local repo, and config."
     )
     parser.add_argument(
         "--output-json",
@@ -138,10 +228,37 @@ def main() -> int:
         action="store_true",
         help="Print only JSON output (implies --output-json)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simulate actions without modifying local repo or config file",
+    )
     args = parser.parse_args()
 
     requests.packages.urllib3.disable_warnings()
-    verify_ssl = to_bool(args.verify_ssl)
+    role = prompt_with_default("Role (source/target)", "source").lower()
+    vtom = prompt_with_default("VTOM host:port", (CONFIG_FQDN_HOSTNAME or "").strip())
+    entered_token = prompt_secret("VTOM API token", bool((CONFIG_API_KEY or "").strip()))
+    token = entered_token if entered_token else (CONFIG_API_KEY or "").strip()
+    central_origin = prompt_with_default("Git origin URL", (CONFIG_GIT_ORIGIN or "").strip())
+    local_repo = prompt_with_default("Local repository path", (CONFIG_GIT_LOCAL or "").strip())
+
+    verify_default = "true" if bool(CONFIG_VERIFY_SSL) else "false"
+    verify_ssl = to_bool(prompt_with_default("Verify SSL (true/false)", verify_default))
+
+    missing = []
+    if role not in ("source", "target"):
+        missing.append("role(source|target)")
+    if not vtom:
+        missing.append("vtom/FQDN_HOSTNAME")
+    if not token:
+        missing.append("token/API_KEY")
+    if not local_repo:
+        missing.append("local-repo/GIT_LOCAL")
+    if missing:
+        print_format("ERROR", "Missing required values: " + ", ".join(missing))
+        return 2
+
     if args.json_only:
         args.output_json = True
 
@@ -149,17 +266,23 @@ def main() -> int:
         if not args.json_only:
             print_format(level, content)
 
-    checks = [
-        ("VTOM source server", lambda: check_vtom_server("source VTOM", args.source_vtom, args.source_token, verify_ssl)),
-        ("VTOM target server", lambda: check_vtom_server("target VTOM", args.target_vtom, args.target_token, verify_ssl)),
-        ("Local source git repository", lambda: check_local_git_repo("source repo", args.source_repo)),
-        ("Local target git repository", lambda: check_local_git_repo("target repo", args.target_repo)),
-        ("Central origin remote", lambda: check_central_origin(args.source_repo, args.target_repo)),
-    ]
-
     failed = 0
     results = []
-    log("INFO", "Starting prerequisite validation")
+    log("INFO", f"Starting preparation for {role} side")
+    if args.dry_run:
+        log("INFO", "Running in dry-run mode (no local write operations).")
+
+    checks = [
+        (
+            "VTOM server",
+            lambda: check_vtom_server(f"{role} VTOM", vtom, token, verify_ssl),
+        ),
+        (
+            "Local git repository",
+            lambda: ensure_local_repo(local_repo, central_origin, args.dry_run),
+        ),
+    ]
+
     for label, check in checks:
         ok, message = check()
         results.append({"name": label, "ok": ok, "message": message})
@@ -169,52 +292,35 @@ def main() -> int:
             failed += 1
             log("ERROR", f"{label}: {message}")
 
-    src_v_ok, src_version = detect_domain_api_version(args.source_vtom, args.source_token, verify_ssl)
-    tgt_v_ok, tgt_version = detect_domain_api_version(args.target_vtom, args.target_token, verify_ssl)
-    if src_v_ok:
-        results.append({"name": "Source VTOM domain API version", "ok": True, "message": src_version})
-        log("SUCCESS", f"Source VTOM domain API version: {src_version}")
+    version_ok, version = detect_domain_api_version(vtom, token, verify_ssl)
+    results.append({"name": "VTOM domain API version", "ok": version_ok, "message": version})
+    if version_ok:
+        log("SUCCESS", f"VTOM domain API version: {version}")
     else:
-        results.append({"name": "Source VTOM domain API version", "ok": False, "message": src_version})
         failed += 1
-        log("ERROR", "Source VTOM domain API version: unable to detect")
+        log("ERROR", "VTOM domain API version: unable to detect")
 
-    if tgt_v_ok:
-        results.append({"name": "Target VTOM domain API version", "ok": True, "message": tgt_version})
-        log("SUCCESS", f"Target VTOM domain API version: {tgt_version}")
+    swagger_ok, swagger_msg = check_swagger(vtom, verify_ssl)
+    results.append({"name": "VTOM Swagger", "ok": swagger_ok, "message": swagger_msg})
+    if swagger_ok:
+        log("SUCCESS", f"VTOM Swagger: {swagger_msg}")
     else:
-        results.append({"name": "Target VTOM domain API version", "ok": False, "message": tgt_version})
         failed += 1
-        log("ERROR", "Target VTOM domain API version: unable to detect")
+        log("ERROR", f"VTOM Swagger: {swagger_msg}")
 
-    if src_v_ok and tgt_v_ok and src_version == tgt_version:
-        results.append({"name": "VTOM version compatibility", "ok": True, "message": f"both use domain/{src_version}"})
-        log("SUCCESS", f"VTOM version compatibility: both use domain/{src_version}")
-    else:
-        results.append(
-            {
-                "name": "VTOM version compatibility",
-                "ok": False,
-                "message": f"source={src_version}, target={tgt_version}",
-            }
-        )
-        failed += 1
-        log("ERROR", f"VTOM version compatibility failed: source={src_version}, target={tgt_version}")
-
-    src_sw_ok, src_sw_msg = check_swagger(args.source_vtom, verify_ssl)
-    tgt_sw_ok, tgt_sw_msg = check_swagger(args.target_vtom, verify_ssl)
-    results.append({"name": "Source VTOM Swagger", "ok": src_sw_ok, "message": src_sw_msg})
-    results.append({"name": "Target VTOM Swagger", "ok": tgt_sw_ok, "message": tgt_sw_msg})
-    if src_sw_ok:
-        log("SUCCESS", f"Source VTOM Swagger: {src_sw_msg}")
+    config_ok, config_msg = update_config_file(
+        "./config.py",
+        vtom,
+        token,
+        verify_ssl,
+        args.dry_run,
+    )
+    results.append({"name": "Config update", "ok": config_ok, "message": config_msg})
+    if config_ok:
+        log("SUCCESS", f"Config update: {config_msg}")
     else:
         failed += 1
-        log("ERROR", f"Source VTOM Swagger: {src_sw_msg}")
-    if tgt_sw_ok:
-        log("SUCCESS", f"Target VTOM Swagger: {tgt_sw_msg}")
-    else:
-        failed += 1
-        log("ERROR", f"Target VTOM Swagger: {tgt_sw_msg}")
+        log("ERROR", f"Config update: {config_msg}")
 
     summary = {
         "ok": failed == 0,

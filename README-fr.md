@@ -36,24 +36,25 @@ Pour la mise à jour du référentiel après un commit :
 Les 2 parties sont liées au JobAsCode mais peuvent être utilisées/mises en place indépendamment.
 
 ## Validation préparatoire des prérequis
-Le script `prepareJobAsCode.py` valide automatiquement les prérequis logiciels avant de lancer l'export/import:
-  * accessibilité API du serveur VTOM source
-  * accessibilité API du serveur VTOM cible
-  * même version d'API Domain entre source et cible (ex: `/domain/5.0`)
-  * accessibilité Swagger/OpenAPI (`/v3/api-docs` ou `/swagger-ui`)
-  * présence des 2 dépôts git locaux
-  * cohérence du remote central `origin` entre les 2 dépôts
+Le script `prepareJobAsCode.py` prépare un seul côté (`source` ou `target`) à la fois:
+  * validation du serveur VTOM choisi (API + Swagger/OpenAPI)
+  * détection de la version Domain disponible (`/domain/x.y`)
+  * préparation du dépôt local (création par clone si absent, initialisation si nécessaire)
+  * configuration/alignement du remote central `origin`
+  * mise à jour du fichier `config.py` (créé depuis `config.py.template` si absent)
+  * fallback sur `config.py` pour `FQDN_HOSTNAME`, `API_KEY`, `GIT_ORIGIN`, `GIT_LOCAL`, `VERIFY_SSL`
 
-Exemple:
+Exemple (le script pose les questions en interactif) :
 ```bash
-python3 prepareJobAsCode.py \
-  --source-vtom "source-vtom:30002" \
-  --source-token "<token-source>" \
-  --target-vtom "target-vtom:30002" \
-  --target-token "<token-cible>" \
-  --source-repo "/chemin/repo-source" \
-  --target-repo "/chemin/repo-cible" \
-  --verify-ssl false
+python3 prepareJobAsCode.py
+```
+
+Le rôle (`source`/`target`) et les autres paramètres sont demandés au lancement.
+Les valeurs par défaut viennent de `config.py` quand elles sont renseignées.
+
+Mode simulation (aucune écriture locale) :
+```bash
+python3 prepareJobAsCode.py ... --dry-run
 ```
 
 Sortie JSON (pour CI) :
@@ -73,7 +74,7 @@ Lorsque le référentiel est déjà existant dans Visual TOM, il est possible de
     * `FQDN_HOSTNAME` : nom du serveur avec le port du serveur d'API
     * `API_KEY` : clé d'API créée précédemment
     * `VERIFY_SSL` : Active ou non la vérification du certificat HTTPS (par défaut, le certificat est auto-signé donc non valide)
-    * `ROOT_PATH` : chemin où seront stockés les fichiers extraits
+    * `GIT_LOCAL` : chemin local utilisé pour les fichiers extraits et le dépôt local
   * Lancer le script
   ```python3 exportAsCode.py```
 A la fin de l'exécution, une synthèse affiche les potentielles erreurs rencontrées.

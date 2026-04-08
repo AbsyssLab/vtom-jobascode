@@ -52,11 +52,11 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
             # Handling file names based on specificities
             if (attributes):
                 # Take the entire tree and remove the last member which will be the file name
-                pathfile = os.path.join(ROOT_PATH,typeObject.replace(typeObject.split('/')[-1],''))
+                pathfile = os.path.join(GIT_LOCAL,typeObject.replace(typeObject.split('/')[-1],''))
                 filename = typeObject.split('/')[-1]+'.json'
 
             else:
-                pathfile = os.path.join(ROOT_PATH,typeObject+'/')
+                pathfile = os.path.join(GIT_LOCAL,typeObject+'/')
                 if (typeObject == "calendars"):
                     filename = json_obj['name']+'-'+str(json_obj['year'])+'.json'
                 elif (typeApi == GRAPH_URI and not attributes):
