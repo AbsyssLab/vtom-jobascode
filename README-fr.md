@@ -19,6 +19,11 @@ Il est possible de faire appel à des jours de consulting pour l'implémentation
 # Prérequis
 
   * Visual TOM 7.1 or supérieur
+  * Un serveur VTOM source
+  * Un serveur VTOM cible
+  * Un dépôt git local source
+  * Un dépôt git local cible
+  * Un dépôt git central (`origin`), pas forcément Github
 
 Pour l'extraction du référentiel au format JSON :
   * Python 3
@@ -29,6 +34,37 @@ Pour la mise à jour du référentiel après un commit :
 
 # Consignes
 Les 2 parties sont liées au JobAsCode mais peuvent être utilisées/mises en place indépendamment.
+
+## Validation préparatoire des prérequis
+Le script `prepareJobAsCode.py` valide automatiquement les prérequis logiciels avant de lancer l'export/import:
+  * accessibilité API du serveur VTOM source
+  * accessibilité API du serveur VTOM cible
+  * même version d'API Domain entre source et cible (ex: `/domain/5.0`)
+  * accessibilité Swagger/OpenAPI (`/v3/api-docs` ou `/swagger-ui`)
+  * présence des 2 dépôts git locaux
+  * cohérence du remote central `origin` entre les 2 dépôts
+
+Exemple:
+```bash
+python3 prepareJobAsCode.py \
+  --source-vtom "source-vtom:30002" \
+  --source-token "<token-source>" \
+  --target-vtom "target-vtom:30002" \
+  --target-token "<token-cible>" \
+  --source-repo "/chemin/repo-source" \
+  --target-repo "/chemin/repo-cible" \
+  --verify-ssl false
+```
+
+Sortie JSON (pour CI) :
+```bash
+python3 prepareJobAsCode.py ... --output-json
+```
+
+Sortie JSON seule (sans logs texte) :
+```bash
+python3 prepareJobAsCode.py ... --json-only
+```
 
 ## Extraction du référentiel au format JSON
 Lorsque le référentiel est déjà existant dans Visual TOM, il est possible de l'extraire au format JSON afin de le stocker dans un gestionnaire de version.

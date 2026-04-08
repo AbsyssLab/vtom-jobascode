@@ -19,6 +19,11 @@ Consultings days can be requested to help for the implementation.
 # Prerequisites
 
     * Visual TOM 7.1 or higher
+    * One source VTOM server
+    * One target VTOM server
+    * One local source git repository
+    * One local target git repository
+    * One central git repository (`origin`), not necessarily Github
 
 For extracting the repository in JSON format:
     * Python 3
@@ -29,6 +34,37 @@ For updating the repository after a commit:
 
 # Instructions
 Both parts are related to JobAsCode but can be used/setup independently.
+
+## Preparatory prerequisite validation
+The `prepareJobAsCode.py` script validates software prerequisites before running export/import:
+  * API reachability of source VTOM server
+  * API reachability of target VTOM server
+  * same Domain API version on source and target (for example `/domain/5.0`)
+  * Swagger/OpenAPI reachability (`/v3/api-docs` or `/swagger-ui`)
+  * presence of both local git repositories
+  * consistency of central `origin` remote across both repositories
+
+Example:
+```bash
+python3 prepareJobAsCode.py \
+  --source-vtom "source-vtom:30002" \
+  --source-token "<source-token>" \
+  --target-vtom "target-vtom:30002" \
+  --target-token "<target-token>" \
+  --source-repo "/path/source-repo" \
+  --target-repo "/path/target-repo" \
+  --verify-ssl false
+```
+
+JSON summary output (for CI):
+```bash
+python3 prepareJobAsCode.py ... --output-json
+```
+
+JSON-only output (no log lines):
+```bash
+python3 prepareJobAsCode.py ... --json-only
+```
 
 ## Extracting the repository in JSON format
 When the repository already exists in Visual TOM, it is possible to extract it in JSON format and store it in a version control system.
