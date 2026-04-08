@@ -1,0 +1,6 @@
+config.py
+*.old
+*.bak
+_*
+.*
+!.gitignore

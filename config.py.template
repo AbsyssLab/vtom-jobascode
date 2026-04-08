@@ -1,10 +1,10 @@
 # Variables are defined in the config.py file. This file is imported in the exportAsCode.py file.
 FQDN_HOSTNAME = ""
 URI = f"https://{FQDN_HOSTNAME}/vtom/public"
-CRUD_URI = "/domain/2.0"
+CRUD_URI = "/domain/5.0"
 MONITOR_URI = "/monitoring/1.0"
-GRAPH_URI = "/graph/1.0"
-AUTH_URI = "/auth/1.0/authorize"
+GRAPH_URI = "/graph/2.0"
+AUTH_URI = "/auth/2.0/authorize"
 SECURITY_URI = "/security/1.0"
 API_KEY = ""
 VERIFY_SSL = False
@@ -16,3 +16,22 @@ HEADER_AUTH = {
                 "Content-Type": "application/json",
                 "X-API-KEY": API_KEY
               }
+
+# Fixed import order used by importAsCode.py (A/M first, D in reverse).
+IMPORT_ORDER_PREFIXES = [
+                "calendars",
+                "dates",
+                "tokens",
+                "agents",
+                "submitUnits",
+                "queues",
+                "users",
+                "resources",
+                "contexts",
+                "environments",
+                "profiles",
+                "links",
+                "alarms",
+                "properties",
+                "applicationServers",
+              ]

@@ -55,6 +55,7 @@ The following steps work for Github, but the reasoning remains the same with oth
 * Create a variable `VTOM_SERVER_NAME` in the Github repository (Settings / Secrets and variables / Actions / Variables / New repository variable) with the value as the Visual TOM server name with the port
 * Create a secret `VTOM_TOKEN` in the Github repository (Settings / Secrets and variables / Actions / Secrets / New repository secret) with the value as the API token
 * Place the YAML file `vtom-jobascode.yml` in a `.github/workflows` directory
+* The workflow calls `importAsCode.py` to process added/modified/deleted JSON files between commits and run POST/PUT/DELETE API operations
 
 From this point on, any action performed on the repository will trigger an action to update the repository (except changes in .github/workflows folder).
 
@@ -68,10 +69,25 @@ Once you have configured the previous steps, you can execute the repository upda
 
 Make sure to check the action results to ensure that the repository update was successful.
 
+### Running the import script manually
+You can also run the import script outside Github Actions, for example for local tests:
+
+```bash
+export VTOM_SERVER_NAME="my-server:30002"
+export VTOM_TOKEN="my-api-token"
+python3 importAsCode.py --before <before-sha> --after <after-sha> --repo-root .
+```
+
+Dry-run mode (no API call):
+
+```bash
+python3 importAsCode.py --before <before-sha> --after <after-sha> --repo-root . --dry-run
+```
+
 ### Limitations
 * JSON files must adhere to the structure expected by the API server
 * Only "Domain" objects are considered
-* Order constraints between objects are not taken into account (e.g., Agents before Submission Units)
+* Object order is defined in `config.py` (`IMPORT_ORDER_PREFIXES`)
 
 # License
 This project is licensed under the Apache 2.0 License - see the [LICENSE](license) file for details

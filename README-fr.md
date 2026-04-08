@@ -55,6 +55,7 @@ Les étapes ci-après fonctionnent pour Github mais le raisonnement restera le m
 * Créer une variable `VTOM_SERVER_NAME` dans le dépôt Github (Settings / Secrets and variables / Actions / Variables / New repository variable) dont la valeur est le nom du serveur Visual TOM avec le port
 * Créer un secret `VTOM_TOKEN` dans le dépôt Github (Settings / Secrets and variables / Actions / Secrets / New repository secret) dont la valeur est le jeton d'API
 * Déposer le fichier YAML `vtom-jobascode.yml` dans un répertoire `.github/workflows`
+* Le workflow appelle `importAsCode.py` pour traiter les fichiers JSON ajoutés/modifiés/supprimés entre 2 commits et exécuter les appels API POST/PUT/DELETE
 
 A partir de ce moment, toute action effectuée sur le dépôt entrainera l'exécution d'une action pour mettre à jour le référentiel (à part les changements effectués dans le répertoire .github/workflows).
 
@@ -68,10 +69,25 @@ Une fois que vous avez configuré les étapes précédentes, vous pouvez exécut
 
 Assurez-vous de vérifier les résultats de l'action pour vous assurer que la mise à jour du référentiel s'est déroulée correctement.
 
+### Exécution manuelle du script d'import
+Le script peut aussi être lancé hors Github Actions, par exemple pour tester en local:
+
+```bash
+export VTOM_SERVER_NAME="mon-serveur:30002"
+export VTOM_TOKEN="mon-token-api"
+python3 importAsCode.py --before <sha-avant> --after <sha-apres> --repo-root .
+```
+
+Mode simulation (sans appel API):
+
+```bash
+python3 importAsCode.py --before <sha-avant> --after <sha-apres> --repo-root . --dry-run
+```
+
 ### Limites
 * Les fichiers JSON doivent respecter la structure attendue par le serveur d'API
 * Seuls les objets "Domain" sont pris en compte
-* Les contraintes d'ordre entre les objets ne sont pas prises en compte (exemple: Agents avant Unités de soumission)
+* L'ordre des objets est défini dans `config.py` (`IMPORT_ORDER_PREFIXES`)
 
 # Licence
 Ce projet est sous licence Apache 2.0. Voir le fichier [LICENCE](license) pour plus de détails.

@@ -4,22 +4,47 @@ import requests # For API calls
 import json     # For JSON manipulation
 import time     # For timestamp
 import os       # For directory tests
-import argparse # For command line arguments
+from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, print_format, request_vtom
+
+CRUD_URI = API_PATHS["crud"]
+GRAPH_URI = API_PATHS["graph"]
+SECURITY_URI = API_PATHS["security"]
 
 #####################################################
 ### Function to print messages to standard output
 #####################################################
 def printFormat(typeMessage: str, Content:str):
-    timestamp=(time.strftime("%H:%M:%S", time.localtime()))
-    print(timestamp + ' | ' + typeMessage.ljust(7) + ' | ' + Content)
+    print_format(typeMessage, Content)
     return;
 
 #####################################################
 ### Function to extract data and save it to a file
 #####################################################
 def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False):
-
-    response = requests.get(URI + typeApi+'/'+typeObject,headers=HEADER_AUTH,verify=VERIFY_SSL)
+    try:
+        response = request_vtom(
+            method="GET",
+            url=URI + typeApi+'/'+typeObject,
+            headers=HEADER_AUTH,
+            verify_ssl=VERIFY_SSL,
+            timeout=30
+        )
+    except requests.exceptions.ConnectionError as err:
+        ERRORS_LIST.append(typeApi+'/'+typeObject)
+        printFormat(
+            'ERROR',
+            'Connection failed for ' + typeObject +
+            '. Check FQDN_HOSTNAME/URI in config.py. Details: ' + str(err)
+        )
+        return
+    except requests.exceptions.Timeout:
+        ERRORS_LIST.append(typeApi+'/'+typeObject)
+        printFormat(
+            'ERROR',
+            'Timeout for ' + typeObject +
+            '. API did not respond within 30s.'
+        )
+        return
 
     if (response.status_code == 200 or response.status_code == 201):
 
@@ -97,7 +122,7 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
         printFormat('ERROR','Extraction of '+typeObject+'. Message: Error 500 Internal Server Error')
     else:
         ERRORS_LIST.append(typeApi+'/'+typeObject)
-        printFormat('ERROR','Extraction of '+typeObject+'. Message: '+response.json()['message'])
+        printFormat('ERROR','Extraction of '+typeObject+'. Message: ' + parse_message(response))
 
 
 #####################################################
@@ -112,33 +137,8 @@ ERRORS_LIST = []
 startTime = time.time()
 
 printFormat('INFO','Starting export of VTOM configuration')
-extractObject(CRUD_URI,'calendars')
-extractObject(CRUD_URI,'users')
-extractObject(CRUD_URI,'resources')
-extractObject(CRUD_URI,'dates')
-extractObject(CRUD_URI,'queues')
-extractObject(CRUD_URI,'tokens')
-extractObject(CRUD_URI,'agents')
-extractObject(CRUD_URI,'submitUnits')
-extractObject(CRUD_URI,'holidaysGroups')
-extractObject(CRUD_URI,'holidays')
-extractObject(CRUD_URI,'applicationServers/filesTransfers')
-extractObject(CRUD_URI,'applicationServers/email')
-extractObject(CRUD_URI,'applicationServers/amazonWebServices')
-extractObject(CRUD_URI,'applicationServers/azure')
-extractObject(CRUD_URI,'applicationServers/databases')
-extractObject(CRUD_URI,'applicationServers/docker')
-extractObject(CRUD_URI,'applicationServers/kubernetes')
-extractObject(CRUD_URI,'applicationServers/m3')
-extractObject(CRUD_URI,'applicationServers/dynamicsAx')
-extractObject(CRUD_URI,'applicationServers/peopleSoft')
-extractObject(CRUD_URI,'applicationServers/sapBo')
-extractObject(CRUD_URI,'applicationServers/sapBw')
-extractObject(CRUD_URI,'applicationServers/sapDs')
-extractObject(CRUD_URI,'applicationServers/sapR3')
-extractObject(CRUD_URI,'contexts')
-extractObject(CRUD_URI,'environments')
-extractObject(CRUD_URI,'alarms')
+for object_name in EXPORT_ROOT_OBJECTS:
+    extractObject(CRUD_URI, object_name)
 extractObject(GRAPH_URI,'properties',True)
 extractObject(SECURITY_URI,'profiles')
 
