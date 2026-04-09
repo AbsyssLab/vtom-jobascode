@@ -77,6 +77,12 @@ Lorsque le référentiel est déjà existant dans Visual TOM, il est possible de
     * `GIT_LOCAL` : chemin local utilisé pour les fichiers extraits et le dépôt local
   * Lancer le script
   ```python3 exportAsCode.py```
+  Par défaut, l'extraction est orientée import et n'exporte pas les fichiers snapshot
+  agrégés du graphe (`graph.json`, `nodes.json`), non nécessaires pour `importAsCode.py`.
+  Pour les inclure (export graphe complet/historique), utiliser :
+  ```bash
+  python3 exportAsCode.py --full-graph-snapshots
+  ```
 A la fin de l'exécution, une synthèse affiche les potentielles erreurs rencontrées.
 L'architecture du répertoire reprend celle des URL des API : typeObjet/nomObjet/typeSousObjet/nomSousObjet
 
@@ -112,13 +118,13 @@ Le script peut aussi être lancé hors Github Actions, par exemple pour tester e
 ```bash
 export VTOM_SERVER_NAME="mon-serveur:30002"
 export VTOM_TOKEN="mon-token-api"
-python3 importAsCode.py --before <sha-avant> --after <sha-apres> --repo-root .
+python3 importAsCode.py
 ```
 
-Mode simulation (sans appel API):
+Exécution réelle (appels API):
 
 ```bash
-python3 importAsCode.py --before <sha-avant> --after <sha-apres> --repo-root . --dry-run
+python3 importAsCode.py --run
 ```
 
 ### Limites

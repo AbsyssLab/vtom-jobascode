@@ -77,6 +77,12 @@ When the repository already exists in Visual TOM, it is possible to extract it i
     * `GIT_LOCAL`: local path used for extracted files and local repository
   * Run the script
     ```python3 exportAsCode.py```
+    By default, export is import-friendly and skips aggregated graph snapshot files
+    (`graph.json`, `nodes.json`) that are not needed for `importAsCode.py`.
+    To include them (legacy/full graph export), use:
+    ```bash
+    python3 exportAsCode.py --full-graph-snapshots
+    ```
 At the end of the execution, a summary will display any potential errors.
 The directory structure follows the API URLs: objectType/objectName/subObjectType/subObjectName
 
@@ -112,13 +118,13 @@ You can also run the import script outside Github Actions, for example for local
 ```bash
 export VTOM_SERVER_NAME="my-server:30002"
 export VTOM_TOKEN="my-api-token"
-python3 importAsCode.py --before <before-sha> --after <after-sha> --repo-root .
+python3 importAsCode.py
 ```
 
-Dry-run mode (no API call):
+Real execution (API calls):
 
 ```bash
-python3 importAsCode.py --before <before-sha> --after <after-sha> --repo-root . --dry-run
+python3 importAsCode.py --run
 ```
 
 ### Limitations

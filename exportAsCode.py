@@ -1,5 +1,6 @@
 from config import *
 
+import argparse
 import requests # For API calls
 import json     # For JSON manipulation
 import time     # For timestamp
@@ -9,6 +10,7 @@ from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, print_for
 CRUD_URI = API_PATHS["crud"]
 GRAPH_URI = API_PATHS["graph"]
 SECURITY_URI = API_PATHS["security"]
+INCLUDE_GRAPH_SNAPSHOTS = False
 
 #####################################################
 ### Function to print messages to standard output
@@ -93,19 +95,21 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/variables',True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/applications',sublevel=True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/alarms',True)
-                extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']) # This call contains /properties + /nodes + link style
                 extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/properties',True)
-                extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/nodes',True)
+                if INCLUDE_GRAPH_SNAPSHOTS:
+                    extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']) # Aggregated graph snapshot
+                    extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/nodes',True)
             elif (typeObject.split('/')[-1] == 'applications' and sublevel):
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/links',True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/contexts',True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/variables',True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/jobs',sublevel=True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/alarms',True)
-                extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']) # This call contains /properties + /nodes + link style
                 extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/properties',True)
-                extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/nodes',True)
                 extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/node',True)
+                if INCLUDE_GRAPH_SNAPSHOTS:
+                    extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']) # Aggregated graph snapshot
+                    extractObject(GRAPH_URI,typeObject+'/'+json_obj['name']+'/nodes',True)
             elif (typeObject.split('/')[-1] == 'jobs' and sublevel):
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/links',True)
                 extractObject(CRUD_URI,typeObject+'/'+json_obj['name']+'/contexts',True)
@@ -131,12 +135,28 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
 # To avoid warnings on self-signed HTTPS
 requests.packages.urllib3.disable_warnings()
 
+parser = argparse.ArgumentParser(
+    description="Export Visual TOM objects to JSON files.",
+)
+parser.add_argument(
+    "--full-graph-snapshots",
+    action="store_true",
+    help="Also export aggregated graph snapshot files (graph.json, nodes.json). "
+         "By default, export is import-friendly and skips them.",
+)
+args = parser.parse_args()
+
 # Variables
 ERRORS_LIST = []
+INCLUDE_GRAPH_SNAPSHOTS = args.full_graph_snapshots
 
 startTime = time.time()
 
 printFormat('INFO','Starting export of VTOM configuration')
+if INCLUDE_GRAPH_SNAPSHOTS:
+    printFormat('INFO', 'Mode: full graph snapshots enabled')
+else:
+    printFormat('INFO', 'Mode: import-friendly (graph.json/nodes.json skipped)')
 for object_name in EXPORT_ROOT_OBJECTS:
     extractObject(CRUD_URI, object_name)
 extractObject(GRAPH_URI,'properties',True)
