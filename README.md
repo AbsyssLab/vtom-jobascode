@@ -5,9 +5,10 @@
 This repository provides a set of tools for implementing "JobAsCode" with Visual TOM.
 As a reminder, the "JobAsCode" concept considers Jobs and related objects as code, following a version-controlled workflow.
 
-The provided tools cover two aspects:
+The provided tools allow:
+    * Preparing interaction settings for Visual TOM and Git
     * Generating code from an existing Visual TOM repository (extracting all objects in JSON format)
-    * Updating the Visual TOM repository upon a commit
+    * Updating the Visual TOM repository
 
 # Disclaimer
 No Support and No Warranty are provided by Absyss SAS for this project and related material. The use of this project's files is at your own risk.
@@ -19,16 +20,15 @@ Consultings days can be requested to help for the implementation.
 # Prerequisites
 
     * Visual TOM 7.1 or higher
-    * One source VTOM server
-    * One target VTOM server
-    * One local source git repository
-    * One local target git repository
-    * One central git repository (`origin`), not necessarily Github
+    * One VTOM server (source and/or target)
+    * One local git repository (source and/or target)
+    * (Recommended) A central Git repository (`origin`). Ex: GitHub, GitLab, Gitea...
 
-For extracting the repository in JSON format:
+For extracting the repository in JSON format in VCS (Git):
     * Python 3
+    * Git
 
-For updating the repository after a commit:
+For updating the repository after a commit with Github:
     * Github Actions
     * Open flow between Github and Visual TOM API server
 
@@ -70,7 +70,7 @@ python3 prepareJobAsCode.py ... --json-only
 ## Extracting the repository in JSON format
 When the repository already exists in Visual TOM, it is possible to extract it in JSON format and store it in a version control system.
   * Create an API token from Visual TOM interface with a strategy that has "Get" rights
-  * Fill in the config.py file:
+  * `config.py` should already be prepared during the previous step, including:
     * `FQDN_HOSTNAME`: server name with the API server port
     * `API_KEY`: previously created API key
     * `VERIFY_SSL`: Enable or disable HTTPS certificate verification (by default, the certificate is self-signed and not valid)
@@ -83,21 +83,18 @@ When the repository already exists in Visual TOM, it is possible to extract it i
     ```bash
     python3 exportAsCode.py --full-graph-snapshots
     ```
+  The output directory (`GIT_LOCAL`) is cleaned before extraction (the `.git` folder is preserved).
 At the end of the execution, a summary will display any potential errors.
 The directory structure follows the API URLs: objectType/objectName/subObjectType/subObjectName
-
-The script does not delete files in the output directory before generating new files. This means that if objects have been deleted from the Visual TOM repository, the files will still be present. Depending on the needs, it may be necessary to add a preliminary step to empty the directory.
 
 ### Limitations
 * In case of manual updates in the repository and modifications in the versioning tool, conflicts may arise between local repositories.
 
 ## Updating the repository after a commit
 When the repository is integrated with a version control tool, the repository can be automatically updated based on code updates.
-The following steps work for Github, but the reasoning remains the same with other versioning tools as long as they support "event-based actions".
+The following steps work for Github, but the same approach applies to other versioning tools that support event-based actions.
 * Create an API token from Visual TOM interface with a strategy that has "Post", "Put", and "Delete" rights on versioned objects
-* Create a variable `VTOM_SERVER_NAME` in the Github repository (Settings / Secrets and variables / Actions / Variables / New repository variable) with the value as the Visual TOM server name with the port
-* Create a secret `VTOM_TOKEN` in the Github repository (Settings / Secrets and variables / Actions / Secrets / New repository secret) with the value as the API token
-* Place the YAML file `vtom-jobascode.yml` in a `.github/workflows` directory
+* Place the YAML file `vtom-jobascode-github.yml` in a `.github/workflows` directory
 * The workflow calls `importAsCode.py` to process added/modified/deleted JSON files between commits and run POST/PUT/DELETE API operations
 
 From this point on, any action performed on the repository will trigger an action to update the repository (except changes in .github/workflows folder).
@@ -113,23 +110,21 @@ Once you have configured the previous steps, you can execute the repository upda
 Make sure to check the action results to ensure that the repository update was successful.
 
 ### Running the import script manually
-You can also run the import script outside Github Actions, for example for local tests:
+You can also run the import script outside Github Actions, for example for local tests (simulation mode by default):
 
 ```bash
-export VTOM_SERVER_NAME="my-server:30002"
-export VTOM_TOKEN="my-api-token"
-python3 importAsCode.py
+python3 importAsCode.py --from <from-sha> --to <to-sha>
 ```
 
 Real execution (API calls):
 
 ```bash
-python3 importAsCode.py --run
+python3 importAsCode.py --from <from-sha> --to <to-sha> --run
 ```
 
 ### Limitations
 * JSON files must adhere to the structure expected by the API server
-* Only "Domain" objects are considered
+* Domain, Graph, and Security objects are handled depending on the resource type
 * Object order is defined in `config.py` (`IMPORT_ORDER_PREFIXES`)
 
 # License

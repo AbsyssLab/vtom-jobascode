@@ -5,6 +5,7 @@ import requests # For API calls
 import json     # For JSON manipulation
 import time     # For timestamp
 import os       # For directory tests
+import shutil
 from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, print_format, request_vtom
 
 CRUD_URI = API_PATHS["crud"]
@@ -18,6 +19,21 @@ INCLUDE_GRAPH_SNAPSHOTS = False
 def printFormat(typeMessage: str, Content:str):
     print_format(typeMessage, Content)
     return;
+
+
+def clear_output_directory(base_dir: str) -> None:
+    # Keep git metadata when GIT_LOCAL is itself a repository root.
+    if not os.path.exists(base_dir):
+        os.makedirs(base_dir)
+        return
+    for entry in os.listdir(base_dir):
+        if entry == ".git":
+            continue
+        entry_path = os.path.join(base_dir, entry)
+        if os.path.isdir(entry_path) and not os.path.islink(entry_path):
+            shutil.rmtree(entry_path)
+        else:
+            os.unlink(entry_path)
 
 #####################################################
 ### Function to extract data and save it to a file
@@ -157,6 +173,8 @@ if INCLUDE_GRAPH_SNAPSHOTS:
     printFormat('INFO', 'Mode: full graph snapshots enabled')
 else:
     printFormat('INFO', 'Mode: import-friendly (graph.json/nodes.json skipped)')
+printFormat('INFO', f'Cleaning output directory: {GIT_LOCAL}')
+clear_output_directory(GIT_LOCAL)
 for object_name in EXPORT_ROOT_OBJECTS:
     extractObject(CRUD_URI, object_name)
 extractObject(GRAPH_URI,'properties',True)
