@@ -1,8 +1,20 @@
 import json
 import os
 import time
+from typing import Optional, Union
 
 import requests
+
+import sys, logging
+
+logging.basicConfig(
+
+      level=logging.INFO,
+      format='%(asctime)s | %(levelname)s | %(message)s',
+      stream=sys.stdout,
+      force=True
+
+)
 
 try:
     from config import API_KEY, FQDN_HOSTNAME, VERIFY_SSL
@@ -82,7 +94,7 @@ def print_format(level: str, content: str) -> None:
     print(f"{timestamp} | {level.ljust(7)} | {content}")
 
 
-def to_bool(value: str | None, default: bool) -> bool:
+def to_bool(value: Optional[str], default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in ("1", "true", "yes", "on")
@@ -129,7 +141,7 @@ def request_vtom(
     url: str,
     headers: dict,
     verify_ssl: bool,
-    body: dict | list | None = None,
+    body: Optional[Union[dict, list]] = None,
     timeout: int = 30,
 ) -> requests.Response:
     return requests.request(

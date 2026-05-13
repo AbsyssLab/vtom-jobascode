@@ -16,9 +16,16 @@ INCLUDE_GRAPH_SNAPSHOTS = False
 #####################################################
 ### Function to print messages to standard output
 #####################################################
-def printFormat(typeMessage: str, Content:str):
-    print_format(typeMessage, Content)
-    return;
+import sys, logging
+
+logging.basicConfig(
+
+      level=logging.INFO,
+      format='%(asctime)s | %(levelname)s | %(message)s',
+      stream=sys.stdout,
+      force=True
+)
+logger = logging.getLogger(__name__)
 
 
 def clear_output_directory(base_dir: str) -> None:
@@ -27,7 +34,7 @@ def clear_output_directory(base_dir: str) -> None:
         os.makedirs(base_dir)
         return
     for entry in os.listdir(base_dir):
-        if entry == ".git":
+        if entry in (".git", ".github", "README.md", "README-fr.md"):
             continue
         entry_path = os.path.join(base_dir, entry)
         if os.path.isdir(entry_path) and not os.path.islink(entry_path):
@@ -49,16 +56,14 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
         )
     except requests.exceptions.ConnectionError as err:
         ERRORS_LIST.append(typeApi+'/'+typeObject)
-        printFormat(
-            'ERROR',
+        logger.error(
             'Connection failed for ' + typeObject +
             '. Check FQDN_HOSTNAME/URI in config.py. Details: ' + str(err)
         )
         return
     except requests.exceptions.Timeout:
         ERRORS_LIST.append(typeApi+'/'+typeObject)
-        printFormat(
-            'ERROR',
+        logger.error(
             'Timeout for ' + typeObject +
             '. API did not respond within 30s.'
         )
@@ -135,14 +140,14 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
             elif (typeObject == 'profiles'):
                 extractObject(SECURITY_URI,typeObject+'/'+json_obj['name']+'/rights',True)
 
-        if (len(response.json())>0 and not attributes): printFormat('SUCCESS','Extraction of '+typeObject+' ('+str(len(response.json()))+' extracted)')
-        elif (not attributes): printFormat('SUCCESS','Extraction of '+typeObject+ ' (None)')
+        if (len(response.json())>0 and not attributes): logger.info('Extraction of '+typeObject+' ('+str(len(response.json()))+' extracted)')
+        elif (not attributes): logger.info('Extraction of '+typeObject+ ' (None)')
     elif (response.status_code == 500):
         ERRORS_LIST.append(typeApi+'/'+typeObject)
-        printFormat('ERROR','Extraction of '+typeObject+'. Message: Error 500 Internal Server Error')
+        logger.error('Extraction of '+typeObject+'. Message: Error 500 Internal Server Error')
     else:
         ERRORS_LIST.append(typeApi+'/'+typeObject)
-        printFormat('ERROR','Extraction of '+typeObject+'. Message: ' + parse_message(response))
+        logger.error('Extraction of '+typeObject+'. Message: ' + parse_message(response))
 
 
 #####################################################
@@ -168,12 +173,12 @@ INCLUDE_GRAPH_SNAPSHOTS = args.full_graph_snapshots
 
 startTime = time.time()
 
-printFormat('INFO','Starting export of VTOM configuration')
+logger.info('Starting export of VTOM configuration')
 if INCLUDE_GRAPH_SNAPSHOTS:
-    printFormat('INFO', 'Mode: full graph snapshots enabled')
+    logger.info('Mode: full graph snapshots enabled')
 else:
-    printFormat('INFO', 'Mode: import-friendly (graph.json/nodes.json skipped)')
-printFormat('INFO', f'Cleaning output directory: {GIT_LOCAL}')
+    logger.info('Mode: import-friendly (graph.json/nodes.json skipped)')
+logger.info(f'Cleaning output directory: {GIT_LOCAL}')
 clear_output_directory(GIT_LOCAL)
 for object_name in EXPORT_ROOT_OBJECTS:
     extractObject(CRUD_URI, object_name)
@@ -181,10 +186,10 @@ extractObject(GRAPH_URI,'properties',True)
 extractObject(SECURITY_URI,'profiles')
 
 executionTime = (time.time() - startTime)
-printFormat('INFO','Execution time: {:.2f} seconds'.format(executionTime))
+logger.info('Execution time: {:.2f} seconds'.format(executionTime))
 if len(ERRORS_LIST) > 0:
-    printFormat('ERROR','The following API calls failed:')
+    logger.error('The following API calls failed:')
     for error in ERRORS_LIST:
         print(error)
 else:
-    printFormat('SUCCESS','All API calls were successful')
+    logger.info('All API calls were successful')
