@@ -3,11 +3,13 @@ from config import *
 import argparse
 import json
 import logging
-import os       # For directory tests
+import os
 import shutil
-import time     # For timestamp
+import subprocess
+import time
+from datetime import datetime, timezone
 
-import requests # For API calls
+import requests
 from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, request_vtom
 
 logger = logging.getLogger(__name__)
@@ -140,11 +142,36 @@ def extractObject(typeApi : str,typeObject: str,attributes=False,sublevel=False)
         logger.error('Extraction of '+typeObject+'. Message: ' + parse_message(response))
 
 
-#####################################################
-### MAIN ###
-#####################################################
-# To avoid warnings on self-signed HTTPS
-requests.packages.urllib3.disable_warnings()
+def git_commit_and_push(repo_dir: str, push: bool) -> None:
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    commit_msg = f"[skip ci] VTOM export - {timestamp}"
+
+    try:
+        subprocess.run(["git", "-C", repo_dir, "add", "--all"], check=True)
+
+        result = subprocess.run(
+            ["git", "-C", repo_dir, "diff", "--cached", "--quiet"],
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            logger.info("No changes to commit.")
+            return
+
+        subprocess.run(
+            ["git", "-C", repo_dir, "commit", "-m", commit_msg],
+            check=True,
+        )
+        logger.info(f"Committed: {commit_msg}")
+
+        if push:
+            # Working tree is clean after commit; rebase onto remote before push
+            subprocess.run(["git", "-C", repo_dir, "pull", "--rebase"], check=True)
+            subprocess.run(["git", "-C", repo_dir, "push"], check=True)
+            logger.info("Changes pushed to remote.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Git operation failed: {e}")
+        raise
+
 
 parser = argparse.ArgumentParser(
     description="Export Visual TOM objects to JSON files.",
@@ -154,6 +181,19 @@ parser.add_argument(
     action="store_true",
     help="Also export aggregated graph snapshot files (graph.json, nodes.json). "
          "By default, export is import-friendly and skips them.",
+)
+parser.add_argument(
+    "--commit",
+    action="store_true",
+    help="Stage and commit all exported files with a '[skip ci]' message and UTC "
+         "timestamp. Prevents the remote GitHub Actions workflow from re-importing "
+         "the changes into VTOM.",
+)
+parser.add_argument(
+    "--push",
+    action="store_true",
+    help="Push the commit to the remote repository after committing. "
+         "Implies --commit.",
 )
 args = parser.parse_args()
 
@@ -183,3 +223,6 @@ if len(ERRORS_LIST) > 0:
         print(error)
 else:
     logger.info('All API calls were successful')
+
+if args.commit or args.push:
+    git_commit_and_push(GIT_LOCAL, push=args.push)
