@@ -1,31 +1,21 @@
 from config import *
 
 import argparse
-import requests # For API calls
-import json     # For JSON manipulation
-import time     # For timestamp
+import json
+import logging
 import os       # For directory tests
 import shutil
-from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, print_format, request_vtom
+import time     # For timestamp
+
+import requests # For API calls
+from vtom_common import API_PATHS, EXPORT_ROOT_OBJECTS, parse_message, request_vtom
+
+logger = logging.getLogger(__name__)
 
 CRUD_URI = API_PATHS["crud"]
 GRAPH_URI = API_PATHS["graph"]
 SECURITY_URI = API_PATHS["security"]
 INCLUDE_GRAPH_SNAPSHOTS = False
-
-#####################################################
-### Function to print messages to standard output
-#####################################################
-import sys, logging
-
-logging.basicConfig(
-
-      level=logging.INFO,
-      format='%(asctime)s | %(levelname)s | %(message)s',
-      stream=sys.stdout,
-      force=True
-)
-logger = logging.getLogger(__name__)
 
 
 def clear_output_directory(base_dir: str) -> None:

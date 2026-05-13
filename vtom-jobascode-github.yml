@@ -9,6 +9,7 @@ on:
     branches: [ "main" ]
     paths-ignore:
       - '.github/workflows/**'
+      - '.github/scripts/**'
 
   # Allows you to run this workflow manually from the Actions tab
   # workflow_dispatch:
@@ -35,7 +36,7 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r .github/scripts/requirements.txt
 
       - name: Import changes to VTOM
         env:
@@ -44,7 +45,7 @@ jobs:
           VTOM_DOMAIN_API_VERSION: "5.0"
           VTOM_VERIFY_SSL: "false"
         run: |
-          python3 importAsCode.py \
-            --before "${{ github.event.before }}" \
-            --after "${{ github.event.after }}" \
-            --repo-root "${{ github.workspace }}"
+          python3 .github/scripts/importAsCode.py \
+            --from "${{ github.event.before }}" \
+            --to "${{ github.event.after }}" \
+            --repo-root "${{ github.workspace }}" --run

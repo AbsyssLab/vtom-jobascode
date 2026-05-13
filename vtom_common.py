@@ -1,19 +1,16 @@
 import json
+import logging
 import os
-import time
+import sys
 from typing import Optional, Union
 
 import requests
 
-import sys, logging
-
 logging.basicConfig(
-
-      level=logging.INFO,
-      format='%(asctime)s | %(levelname)s | %(message)s',
-      stream=sys.stdout,
-      force=True
-
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    stream=sys.stdout,
+    force=True,
 )
 
 try:
@@ -88,10 +85,6 @@ EXPORT_ROOT_OBJECTS = [
     "environments",
     "alarms",
 ]
-
-def print_format(level: str, content: str) -> None:
-    timestamp = time.strftime("%H:%M:%S", time.localtime())
-    print(f"{timestamp} | {level.ljust(7)} | {content}")
 
 
 def to_bool(value: Optional[str], default: bool) -> bool:

@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 import subprocess
 import sys
 from pathlib import Path
@@ -16,9 +17,10 @@ from vtom_common import (
     get_import_settings,
     IMPORT_ORDER_PREFIXES,
     parse_message,
-    print_format,
     request_vtom,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_changed_files(from_sha: str, to_sha: str, repo_root: Path) -> list[tuple[str, str]]:
@@ -189,12 +191,12 @@ def main() -> int:
                 "headers": {},
                 "verify_ssl": False,
             }
-        print_format("INFO", "Running in dry-run mode (no API calls).")
+        logger.info("Running in dry-run mode (no API calls).")
     else:
         try:
             settings = get_import_settings()
         except ValueError as err:
-            print_format("ERROR", str(err))
+            logger.error("%s", err)
             return 2
 
     repo_root = Path(CONFIG_GIT_LOCAL).resolve()
@@ -210,7 +212,7 @@ def main() -> int:
         if not rel_path.endswith(".json"):
             continue
         if is_graph_snapshot_file(rel_path):
-            print_format("INFO", f"SKIP {status} {rel_path} (graph snapshot file)")
+            logger.info("SKIP %s %s (graph snapshot file)", status, rel_path)
             continue
 
         file_no_ext = rel_path[:-5]
@@ -236,7 +238,7 @@ def main() -> int:
                 body = load_json_from_commit(repo_root, args.to_sha, rel_path)
                 method = "POST"
                 if not args.run:
-                    print_format("INFO", f"DRY-RUN A {rel_path} -> {method} {url}")
+                    logger.info("DRY-RUN A %s -> %s %s", rel_path, method, url)
                     applied += 1
                     continue
                 response = request_vtom(method, url, settings["headers"], settings["verify_ssl"], body)
@@ -252,7 +254,7 @@ def main() -> int:
                 if normalized_file_no_ext.endswith("/node") or normalized_file_no_ext == "node":
                     body = sanitize_graph_node_payload(body)
                 if not args.run:
-                    print_format("INFO", f"DRY-RUN M {rel_path} -> {method} {url}")
+                    logger.info("DRY-RUN M %s -> %s %s", rel_path, method, url)
                     applied += 1
                     continue
                 response = request_vtom(method, url, settings["headers"], settings["verify_ssl"], body)
@@ -260,7 +262,7 @@ def main() -> int:
                 url = f"{base_url}/{normalized_file_no_ext}".rstrip("/")
                 method = "DELETE"
                 if not args.run:
-                    print_format("INFO", f"DRY-RUN D {rel_path} -> {method} {url}")
+                    logger.info("DRY-RUN D %s -> %s %s", rel_path, method, url)
                     applied += 1
                     continue
                 response = request_vtom(method, url, settings["headers"], settings["verify_ssl"])
@@ -268,37 +270,39 @@ def main() -> int:
                 continue
         except subprocess.CalledProcessError as err:
             errors.append(f"{status} {rel_path}: cannot read {args.to_sha}:{rel_path} ({err.stderr.strip() or err})")
-            print_format("ERROR", f"{status} {rel_path}: cannot read content from commit {args.to_sha}")
+            logger.error(
+                "%s %s: cannot read content from commit %s", status, rel_path, args.to_sha
+            )
             continue
         except json.JSONDecodeError as err:
             errors.append(f"{status} {rel_path}: invalid JSON ({err})")
-            print_format("ERROR", f"{status} {rel_path}: invalid JSON ({err})")
+            logger.error("%s %s: invalid JSON (%s)", status, rel_path, err)
             continue
         except requests.exceptions.RequestException as err:
             errors.append(f"{status} {rel_path}: request failed ({err})")
-            print_format("ERROR", f"{status} {rel_path}: request failed ({err})")
+            logger.error("%s %s: request failed (%s)", status, rel_path, err)
             continue
 
         if response.status_code in (200, 201, 204):
             applied += 1
-            print_format("SUCCESS", f"{status} {rel_path} -> {response.status_code}")
+            logger.info("%s %s -> %s", status, rel_path, response.status_code)
         elif status == "D" and response.status_code == 404:
             # Deletion is idempotent: object already absent is acceptable.
             applied += 1
-            print_format("INFO", f"{status} {rel_path}: already absent (404)")
+            logger.info("%s %s: already absent (404)", status, rel_path)
         else:
             message = parse_message(response)
             errors.append(f"{status} {rel_path}: {response.status_code} {message}")
-            print_format("ERROR", f"{status} {rel_path}: {response.status_code} {message}")
+            logger.error("%s %s: %s %s", status, rel_path, response.status_code, message)
 
-    print_format("INFO", f"Applied changes: {applied}")
+    logger.info("Applied changes: %s", applied)
     if errors:
-        print_format("ERROR", "Some operations failed")
+        logger.error("Some operations failed")
         for err in errors:
-            print(err)
+            logger.error("%s", err)
         return 1
 
-    print_format("SUCCESS", "All operations completed successfully")
+    logger.info("All operations completed successfully")
     return 0
 
 
